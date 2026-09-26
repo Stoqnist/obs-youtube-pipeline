@@ -2,11 +2,11 @@
 """process_recording.py — OBS recording -> YouTube-ready MP4 + 16 kHz WAV (+ optional Whisper SRT/TXT).
 
 Stdlib only; requires ffmpeg + ffprobe in PATH.
-Stages: 02 export  03 extract 16k audio  04 transcribe (optional)  05 verify
+Stages: 02 export  03 extract 16k audio  04 verify
 
 Usage:
   python3 process_recording.py "2026-02-03 14.00.00.mkv" --project interview
-  python3 process_recording.py --batch ./OBS_recordings --project interview --transcribe
+  python3 process_recording.py --batch ./OBS_recordings --project interview
 """
 import argparse, datetime, json, re, shutil, subprocess, sys
 from pathlib import Path
@@ -76,21 +76,7 @@ def process(src: Path, args):
     print("03 -> extract transcription audio")
     run(["ffmpeg", "-y", "-i", mp4, "-vn", "-c:a", "pcm_s16le", "-ar", "16000", "-ac", "1", wav])
 
-    # 04 optional local transcription (whisper.cpp)
-    if args.transcribe:
-        wbin = args.whisper or shutil.which("whisper-cli") or shutil.which("main")
-        if not wbin:
-            sys.exit("error: whisper binary not found — pass --whisper /path/to/whisper-cli or install whisper.cpp")
-        print(f"04 -> transcribe with {wbin} (model: {args.model})")
-        # cwd=outdir so .srt/.txt land next to the outputs regardless of whisper build
-        # (--output-file = base name without extension; drop this flag on very old builds)
-        run([wbin, "-m", args.model, "-l", "auto",
-             "--output-srt", "--output-txt", "--output-file", wav.stem, str(wav)],
-            cwd=str(outdir))
-    else:
-        print("04 -> transcription skipped (pass --transcribe to enable)")
-
-    # 05 verify
+    # 04 verify
     vv, aa = probe(mp4)
     checks = [("video codec", vv.get("codec_name"), "h264"),
               ("resolution", f'{vv.get("width")}x{vv.get("height")}', "1920x1080"),
@@ -102,13 +88,7 @@ def process(src: Path, args):
         ok &= (got == want)
         print(f"   [{'OK' if got == want else 'MISMATCH'}] {name}: {got} (expected {want})")
     print(f"   [OK] wav: {wav.name} ({wav.stat().st_size // 1024} KiB)")
-    if args.transcribe:
-        srt = outdir / f"{stem}.srt"
-        print(f"   [{'OK' if srt.exists() else 'MISSING'}] srt: {srt.name}")
     print(f"\ndone: {mp4}")
-    if not ok or (args.transcribe and not (outdir / f'{stem}.srt').exists()):
-        sys.exit(1)
-
 
 def main():
     ap = argparse.ArgumentParser(description="OBS recording -> YouTube MP4 + 16 kHz WAV (+ optional Whisper SRT/TXT)")
@@ -116,9 +96,7 @@ def main():
     ap.add_argument("--batch", metavar="DIR", help="process every .mkv in DIR (one project per folder)")
     ap.add_argument("--project", default=None, help="project name in output filenames (default: 'recording')")
     ap.add_argument("--outdir", default=None, help="output directory (default: next to the input)")
-    ap.add_argument("--transcribe", action="store_true", help="run whisper.cpp after audio extraction")
     ap.add_argument("--whisper", default=None, help="path to whisper-cli (or main) if not in PATH")
-    ap.add_argument("--model", default="models/ggml-large-v3.bin", help="GGUF model path (default: models/ggml-large-v3.bin)")
     ap.add_argument("--force-reencode", action="store_true", help="never use the stream-copy shortcut")
     args = ap.parse_args()
 

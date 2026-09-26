@@ -26,26 +26,21 @@ https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin
 
 ## Manual run (any time, one recording):
 ```bash
-python3 process_recording.py "2026-02-03 14.00.00.mkv" --project interview --transcribe
-# outputs: 20260203_interview_1080p.mp4, 20260203_interview_16k.wav, 20260203_interview.srt/.txt
+python3 process_recording.py "2026-02-03 14.00.00.mkv" --project interview
+# outputs: 20260203_interview_1080p.mp4, 20260203_interview_16k.wav
 ```
 
 ## Batch (a folder of recordings from one project):
 ```bash
-python3 process_recording.py --batch ./OBS_recordings --project daily --transcribe
+python3 process_recording.py --batch ./OBS_recordings --project daily
 ```
 
-## Fully automatic (every recording, triggered by OBS):
+## Transcribe
 ```bash
-pip install obsws-python
-export OBS_WEBSOCKET_KEY='...OBS websocket password...'   # set in your shell profile, not in a script
-export OBS_RECORDINGS="$HOME/Movies"
-python3 watch_recordings.py     # leave running; it processes each recording the moment you stop it
+whisper-cli -m models/ggml-large-v3.bin -l auto --output-srt --output-txt --output-file 20260926_interview_16k Movies/20260926_interview_16k.wav
 ```
 
-Trigger options (one-line tradeoffs): obs-websocket RecordOutputStopped (shown above — most robust, needs the plugin, recommended for production) · OBS Python script with on_exit hook (zero dependencies, dies with OBS — quick setups) · file watcher (fswatch on macOS / PowerShell FileSystemWatcher on Windows — fully decoupled from OBS).
-
-## Verification (stage 06)
+## Verification
 The script already asserts all of this and exits non-zero on mismatch. Manual one-liners if you want to double-check:
 ```bash
 ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,profile,width,height -of csv=p=0 20260203_interview_1080p.mp4
